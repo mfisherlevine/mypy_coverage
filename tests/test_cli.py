@@ -1,0 +1,182 @@
+"""End-to-end CLI behaviour."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from textwrap import dedent
+
+import pytest
+
+from mypy_coverage.cli import build_parser, main_cli, want_color
+
+
+@pytest.fixture
+def project_with_known_coverage(tmp_path: Path) -> Path:
+    """Small project with exactly 50% coverage."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text(
+        dedent(
+            """
+            def typed(x: int) -> int: return x
+            def untyped(x): return x
+            """
+        )
+    )
+    (tmp_path / "mypy.ini").write_text("[mypy]\nfiles = src/\n")
+    return tmp_path
+
+
+class TestBuildParser:
+    def test_help_contains_key_options(self) -> None:
+        parser = build_parser()
+        help_text = parser.format_help()
+        for flag in ("--threshold", "--list", "--silent-any", "--format"):
+            assert flag in help_text
+
+    def test_version_flag_exits_zero(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            build_parser().parse_args(["--version"])
+        assert exc.value.code == 0
+
+
+class TestWantColor:
+    def test_always(self) -> None:
+        assert want_color("always") is True
+
+    def test_never(self) -> None:
+        assert want_color("never") is False
+
+
+class TestMainCli:
+    def test_text_format_default(
+        self, capsys: pytest.CaptureFixture[str], project_with_known_coverage: Path
+    ) -> None:
+        import os
+
+        cwd = os.getcwd()
+        os.chdir(project_with_known_coverage)
+        try:
+            code = main_cli(["--color", "never"])
+        finally:
+            os.chdir(cwd)
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "mypy-coverage" in out
+        assert "Coverage:" in out
+
+    def test_json_format(
+        self, capsys: pytest.CaptureFixture[str], project_with_known_coverage: Path
+    ) -> None:
+        import os
+
+        cwd = os.getcwd()
+        os.chdir(project_with_known_coverage)
+        try:
+            code = main_cli(["--format", "json", "--color", "never"])
+        finally:
+            os.chdir(cwd)
+        assert code == 0
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert data["summary"]["percent_fully_typed"] == 50.0
+
+    def test_threshold_passes_when_coverage_high(
+        self, capsys: pytest.CaptureFixture[str], project_with_known_coverage: Path
+    ) -> None:
+        import os
+
+        cwd = os.getcwd()
+        os.chdir(project_with_known_coverage)
+        try:
+            code = main_cli(["--threshold", "40", "--color", "never"])
+        finally:
+            os.chdir(cwd)
+        assert code == 0
+
+    def test_threshold_fails_when_coverage_low(
+        self, capsys: pytest.CaptureFixture[str], project_with_known_coverage: Path
+    ) -> None:
+        import os
+
+        cwd = os.getcwd()
+        os.chdir(project_with_known_coverage)
+        try:
+            code = main_cli(["--threshold", "90", "--color", "never"])
+        finally:
+            os.chdir(cwd)
+        assert code == 1
+        err = capsys.readouterr().err
+        assert "below threshold" in err
+
+    def test_list_flag_lists_uncovered(
+        self, capsys: pytest.CaptureFixture[str], project_with_known_coverage: Path
+    ) -> None:
+        import os
+
+        cwd = os.getcwd()
+        os.chdir(project_with_known_coverage)
+        try:
+            code = main_cli(["--list", "--color", "never"])
+        finally:
+            os.chdir(cwd)
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "untyped" in out
+
+    def test_missing_path_returns_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = main_cli([str(tmp_path / "does_not_exist")])
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "does not exist" in err
+
+    def test_missing_config_returns_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = main_cli(["--config", str(tmp_path / "nope.ini")])
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "config file not found" in err
+
+    def test_threshold_metric_fully_typed(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """fully-typed metric should be stricter than checked."""
+        (tmp_path / "a.py").write_text(
+            dedent(
+                """
+                def full(x: int) -> int: return x
+                def partial(x: int):
+                    return x
+                """
+            )
+        )
+        # Coverage: fully-typed = 50%, checked = 100%.
+        # Threshold 90 on `checked` passes, but on `fully-typed` fails.
+        code_checked = main_cli(
+            [
+                "--threshold",
+                "90",
+                "--threshold-metric",
+                "checked",
+                "--color",
+                "never",
+                str(tmp_path),
+            ]
+        )
+        assert code_checked == 0
+        capsys.readouterr()
+        code_fully = main_cli(
+            [
+                "--threshold",
+                "90",
+                "--threshold-metric",
+                "fully-typed",
+                "--color",
+                "never",
+                str(tmp_path),
+            ]
+        )
+        assert code_fully == 1

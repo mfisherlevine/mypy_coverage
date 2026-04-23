@@ -1,0 +1,86 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mypy-coverage"
+version = "0.1.0"
+description = "Report mypy annotation coverage for a Python codebase."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Merlin Fisher-Levine" }]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+keywords = ["mypy", "typing", "coverage", "static-analysis"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "mypy>=1.11",
+  "ruff>=0.6",
+  "pre-commit>=3.5",
+]
+
+[project.scripts]
+mypy-coverage = "mypy_coverage.cli:main_cli"
+
+[project.urls]
+Homepage = "https://github.com/mfisherlevine/mypy_coverage"
+Issues = "https://github.com/mfisherlevine/mypy_coverage/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mypy_coverage"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/mypy_coverage", "README.md", "LICENSE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+
+[tool.mypy]
+strict = true
+files = ["src/mypy_coverage", "tests"]
+exclude = ["^tests/fixtures/"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "UP",   # pyupgrade
+  "B",    # flake8-bugbear
+  "SIM",  # flake8-simplify
+  "N",    # pep8-naming
+]
+ignore = [
+  "E501",  # line-too-long: formatter handles this
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["N802", "N803"]  # test names often diverge from convention
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

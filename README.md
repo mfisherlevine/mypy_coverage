@@ -4,23 +4,46 @@ A fast, stdlib-only CLI that reports how much of a Python codebase is
 actually type-checked by mypy.
 
 The catch with mypy's default `check_untyped_defs = False` is that **fully
-unannotated functions are silently skipped** — their bodies are not analysed
-and any real type errors inside them are invisible. `mypy-coverage`
-enumerates exactly these, plus files covered by the `exclude` pattern, and
-computes aggregate coverage percentages.
+unannotated functions are silently skipped** — their bodies are not
+analysed and any real type errors inside them are invisible.
+`mypy-coverage` enumerates exactly these, plus files covered by the
+`exclude` pattern, and computes aggregate coverage percentages.
 
 ## Install
 
-No dependencies. Copy `mypy_coverage.py` anywhere on your PATH (and rename
-to `mypy-coverage` if you like):
+Latest tagged release (recommended):
 
 ```sh
-cp mypy_coverage.py ~/bin/mypy-coverage
-chmod +x ~/bin/mypy-coverage
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1"
 ```
 
-Requires Python 3.11+ (for `tomllib`). Python 3.10 works if you `pip
-install tomli`.
+Latest released code on `main`:
+
+```sh
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git"
+```
+
+Bleeding edge (`dev` branch):
+
+```sh
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@dev"
+```
+
+For local development:
+
+```sh
+git clone https://github.com/mfisherlevine/mypy_coverage.git
+cd mypy_coverage
+pip install -e '.[dev]'
+pre-commit install
+pytest
+```
+
+Requires Python 3.11+. The runtime has zero third-party dependencies;
+the `dev` extra pulls in `pytest`, `mypy`, `ruff`, and `pre-commit`.
+Installing provides a `mypy-coverage` console script and a
+`mypy_coverage` importable package (also runnable via `python -m
+mypy_coverage`).
 
 ## Usage
 
@@ -48,11 +71,29 @@ mypy-coverage --format github
 
 # Flag imports that decay to Any
 mypy-coverage --silent-any
+
+# Or use python -m
+python -m mypy_coverage --help
+```
+
+The package also exposes a small programmatic API:
+
+```python
+from pathlib import Path
+from mypy_coverage import build_report, discover_config, load_config
+
+cfg_path = discover_config(Path.cwd())
+cfg = load_config(cfg_path) if cfg_path else None
+report = build_report([Path("src")], cfg, root=Path.cwd())
+print(f"{report.percent_checked():.1f}% body-checked")
+for d in report.definitions:
+    if d.status == "unannotated":
+        print(d.file, d.lineno, d.qualname)
 ```
 
 ## What counts as "covered"?
 
-Each function, method, or class is placed in one bucket:
+Each function, method, or class falls into one of four buckets:
 
 | Status        | Meaning                                                                              |
 | ------------- | ------------------------------------------------------------------------------------ |
@@ -87,8 +128,7 @@ If no config is found, the current directory is scanned with mypy defaults.
 
 ## Silent-Any detection (`--silent-any`)
 
-A best-effort scan for syntactic patterns that usually decay to `Any` even
-when the surrounding code *looks* annotated:
+A best-effort scan for syntactic patterns that usually decay to `Any`:
 
 - **`ignored-import`** — a symbol imported from a module configured with
   `ignore_missing_imports = True`. Everything that symbol names is `Any`.
@@ -98,8 +138,7 @@ when the surrounding code *looks* annotated:
 - **`type-ignore`** — any `# type: ignore` comment.
 
 True "silent Any" detection (types that collapse to Any during mypy's
-semantic analysis) requires actually running mypy; see the `--deep`
-roadmap note below.
+semantic analysis) requires actually running mypy; see the roadmap note.
 
 ## Output formats
 
@@ -114,9 +153,8 @@ roadmap note below.
 ```yaml
 - name: mypy coverage
   run: |
-    python3 mypy_coverage.py \
-      --threshold 85 \
-      --format github
+    pip install mypy-coverage
+    mypy-coverage --threshold 85 --format github
 ```
 
 Exit codes:
@@ -125,7 +163,39 @@ Exit codes:
 - `1` — coverage below threshold
 - `2` — invalid arguments or missing config/paths
 
-## Limitations and roadmap
+## Development
+
+```sh
+pip install -e '.[dev]'
+pre-commit install   # install the git hook
+pytest               # ~120 unit/integration tests
+mypy                 # strict; package and tests should both be clean
+mypy-coverage        # dogfood: should report 100% coverage of itself
+```
+
+Pre-commit runs `ruff` (lint + format), `mypy`, and a handful of
+hygiene hooks (trailing whitespace, EOF newline, large files, merge
+conflicts, debug statements). GitHub Actions CI
+([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same
+pre-commit chain plus `pytest` on Python 3.11/3.12/3.13 and a self-
+coverage check that must be exactly 100%. These are required status
+checks before merging to `main`.
+
+Package layout:
+
+```
+src/mypy_coverage/
+  models.py        Dataclasses and status constants
+  config.py        mypy.ini / setup.cfg / pyproject.toml parsing
+  discovery.py     File walking, exclude-regex matching
+  scanner.py       AST walk, function/method/class classification
+  silent_any.py    --silent-any detection
+  report.py        build_report + per-file aggregation
+  render.py        text / json / markdown / github renderers
+  cli.py           argparse and main entry point
+```
+
+## Limitations
 
 - The scan is syntactic. It does **not** resolve imports, so a function
   with an annotation that references an unresolvable name is still counted
@@ -133,10 +203,12 @@ Exit codes:
 - `--silent-any` is heuristic. It won't catch every path to `Any` — in
   particular, `Any` introduced by calling an untyped function returning
   `Any` is invisible without running mypy.
-- Possible future flag `--deep`: shell out to `mypy --disallow-any-unimported
-  --disallow-any-decorated` and merge the diagnostics for a more thorough
-  silent-Any check.
+- Possible future flag `--deep`: shell out to `mypy
+  --disallow-any-unimported --disallow-any-decorated` and merge the
+  diagnostics for a more thorough silent-Any check.
 
 ## License
 
-TBD (add a `LICENSE` file before the first tagged release).
+GPL-3.0-or-later. See [LICENSE](LICENSE). Chosen to match the wider
+Rubin Observatory / LSST Pipelines ecosystem from which this tool
+originated.
