@@ -11,21 +11,39 @@ analysed and any real type errors inside them are invisible.
 
 ## Install
 
+Latest tagged release (recommended):
+
 ```sh
-pip install git+https://github.com/mfisherlevine/mypy_coverage.git
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1"
 ```
 
-Or, for local development:
+Latest released code on `main`:
+
+```sh
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git"
+```
+
+Bleeding edge (`dev` branch):
+
+```sh
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@dev"
+```
+
+For local development:
 
 ```sh
 git clone https://github.com/mfisherlevine/mypy_coverage.git
 cd mypy_coverage
 pip install -e '.[dev]'
+pre-commit install
 pytest
 ```
 
 Requires Python 3.11+. The runtime has zero third-party dependencies;
-the `dev` extra pulls in `pytest` and `mypy` for development.
+the `dev` extra pulls in `pytest`, `mypy`, `ruff`, and `pre-commit`.
+Installing provides a `mypy-coverage` console script and a
+`mypy_coverage` importable package (also runnable via `python -m
+mypy_coverage`).
 
 ## Usage
 
