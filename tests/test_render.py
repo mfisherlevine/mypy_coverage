@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from mypy_coverage.models import MypyConfig
+from mypy_coverage.models import CoverageReport, MypyConfig
 from mypy_coverage.render import (
     Colors,
     render_github,
@@ -14,9 +14,6 @@ from mypy_coverage.render import (
     render_text,
 )
 from mypy_coverage.report import build_report
-
-
-from mypy_coverage.models import CoverageReport
 
 
 def _report(fixtures_dir: Path, *files: str) -> CoverageReport:

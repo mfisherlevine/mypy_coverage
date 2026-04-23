@@ -93,9 +93,7 @@ class CoverageReport:
         total = self._denominator()
         if total == 0:
             return 100.0
-        checked = sum(
-            1 for d in self.definitions if d.status in (STATUS_ANNOTATED, STATUS_PARTIAL)
-        )
+        checked = sum(1 for d in self.definitions if d.status in (STATUS_ANNOTATED, STATUS_PARTIAL))
         return 100.0 * checked / total
 
     def percent_fully_typed(self) -> float:

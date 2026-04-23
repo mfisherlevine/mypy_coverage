@@ -71,7 +71,7 @@ def scan_silent_any(
                     )
 
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             for dec in node.decorator_list:
                 target = dec.func if isinstance(dec, ast.Call) else dec
                 head = decorator_head(target)

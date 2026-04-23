@@ -104,9 +104,7 @@ def render_text(
         lines.append(c.bold("Per-file (files with uncovered or partial):"))
         header = f"  {'file':<60} {'fully%':>7} {'check%':>7} {'unann':>6} {'part':>5}"
         lines.append(header)
-        lines.append(
-            f"  {'-' * 58:<60} {'-------':>7} {'-------':>7} {'-----':>6} {'----':>5}"
-        )
+        lines.append(f"  {'-' * 58:<60} {'-------':>7} {'-------':>7} {'-----':>6} {'----':>5}")
         for entry in entries:
             lines.append(
                 f"  {entry['file']:<60}"

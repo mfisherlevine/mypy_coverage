@@ -12,18 +12,15 @@ from mypy_coverage.models import (
     STATUS_EXCLUDED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
+    Definition,
 )
 from mypy_coverage.scanner import (
-    classify_function,
     count_annotated_params,
     decorator_names,
     expr_to_dotted_name,
     partial_reason,
     scan_file,
 )
-
-
-from mypy_coverage.models import Definition
 
 
 def statuses_by_qualname(defs: list[Definition]) -> dict[str, str]:
@@ -101,7 +98,6 @@ class TestClassification:
 
     def test_overload_is_always_annotated(self, fixtures_dir: Path) -> None:
         defs, _ = scan_file(fixtures_dir / "overloads_and_decorators.py")
-        statuses = statuses_by_qualname(defs)
         # All three `f` defs live at module top with the same qualname — the
         # file has three of them. At least one of them (the non-overload
         # implementation `def f(x): return x`) is unannotated; overloads
@@ -129,7 +125,7 @@ class TestClassification:
 class TestCountAnnotatedParams:
     """Direct unit tests via ast parsing."""
 
-    def _parse(self, src: str) -> "ast.FunctionDef":
+    def _parse(self, src: str) -> ast.FunctionDef:
         import ast
 
         node = ast.parse(src).body[0]

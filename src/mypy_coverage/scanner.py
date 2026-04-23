@@ -73,7 +73,7 @@ def scan_file(
                     class_stack + [child.name],
                     in_class_body=True,
                 )
-            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            elif isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
                 defs.append(
                     classify_function(
                         child,

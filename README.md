@@ -149,10 +149,19 @@ Exit codes:
 
 ```sh
 pip install -e '.[dev]'
-pytest           # ~120 unit/integration tests
-mypy             # strict; package and tests should both be clean
-mypy-coverage    # dogfood: should report 100% coverage of itself
+pre-commit install   # install the git hook
+pytest               # ~120 unit/integration tests
+mypy                 # strict; package and tests should both be clean
+mypy-coverage        # dogfood: should report 100% coverage of itself
 ```
+
+Pre-commit runs `ruff` (lint + format), `mypy`, and a handful of
+hygiene hooks (trailing whitespace, EOF newline, large files, merge
+conflicts, debug statements). GitHub Actions CI
+([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same
+pre-commit chain plus `pytest` on Python 3.11/3.12/3.13 and a self-
+coverage check that must be exactly 100%. These are required status
+checks before merging to `main`.
 
 Package layout:
 
@@ -182,4 +191,6 @@ src/mypy_coverage/
 
 ## License
 
-TBD (add a `LICENSE` file before the first tagged release).
+GPL-3.0-or-later. See [LICENSE](LICENSE). Chosen to match the wider
+Rubin Observatory / LSST Pipelines ecosystem from which this tool
+originated.

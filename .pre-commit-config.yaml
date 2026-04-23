@@ -1,0 +1,38 @@
+# Run locally with:
+#   pre-commit install        # set up the git hook
+#   pre-commit run --all-files
+#
+# CI runs the same thing -- see .github/workflows/ci.yml.
+
+# The test fixtures deliberately contain unannotated code and one
+# intentionally broken Python file, so they must not be linted or
+# parsed by the debug-statement / ruff hooks.
+exclude: ^tests/fixtures/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        args: [--config-file=pyproject.toml]
+        pass_filenames: false
+        additional_dependencies:
+          - pytest>=8

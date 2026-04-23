@@ -15,12 +15,10 @@ from mypy_coverage.models import (
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
     CoverageReport,
+    Definition,
     MypyConfig,
 )
 from mypy_coverage.report import build_report, per_file_stats
-
-
-from mypy_coverage.models import Definition
 
 
 def function_defs(report: CoverageReport) -> list[Definition]:
@@ -40,9 +38,7 @@ class TestCoveragePercentages:
 
     def test_fully_unannotated_gives_correct_split(self, fixtures_dir: Path) -> None:
         """Classes count as annotated; only functions/methods are unannotated."""
-        report = build_report(
-            [fixtures_dir / "fully_unannotated.py"], _empty_cfg(), fixtures_dir
-        )
+        report = build_report([fixtures_dir / "fully_unannotated.py"], _empty_cfg(), fixtures_dir)
         fns = function_defs(report)
         assert fns
         assert all(d.status == STATUS_UNANNOTATED for d in fns)
@@ -64,9 +60,7 @@ class TestCoveragePercentages:
 
     def test_partial_contributes_to_checked_but_not_fully(self, fixtures_dir: Path) -> None:
         """2 annotated, 2 partial, 2 unannotated over 6 function defs."""
-        report = build_report(
-            [fixtures_dir / "with_partials.py"], _empty_cfg(), fixtures_dir
-        )
+        report = build_report([fixtures_dir / "with_partials.py"], _empty_cfg(), fixtures_dir)
         fns = function_defs(report)
         ann = sum(1 for d in fns if d.status == STATUS_ANNOTATED)
         part = sum(1 for d in fns if d.status == STATUS_PARTIAL)
@@ -102,9 +96,7 @@ class TestCoverageIsByCountNotLines:
     def test_long_and_short_give_identical_percentages(self, fixtures_dir: Path) -> None:
         """Body length must not influence coverage."""
         long_r = build_report([fixtures_dir / "long_bodies.py"], _empty_cfg(), fixtures_dir)
-        short_r = build_report(
-            [fixtures_dir / "short_bodies.py"], _empty_cfg(), fixtures_dir
-        )
+        short_r = build_report([fixtures_dir / "short_bodies.py"], _empty_cfg(), fixtures_dir)
         assert long_r.percent_fully_typed() == short_r.percent_fully_typed()
         assert long_r.percent_checked() == short_r.percent_checked()
 
@@ -149,9 +141,7 @@ class TestPerFileStats:
         assert per_file_stats(report) == []
 
     def test_reports_files_with_gaps(self, tmp_path: Path) -> None:
-        (tmp_path / "bad.py").write_text(
-            "def a(x: int) -> int: return x\ndef b(x): return x\n"
-        )
+        (tmp_path / "bad.py").write_text("def a(x: int) -> int: return x\ndef b(x): return x\n")
         report = build_report([tmp_path], _empty_cfg(), tmp_path)
         stats = per_file_stats(report)
         assert len(stats) == 1
@@ -172,9 +162,7 @@ class TestPerFileStats:
 
 class TestCountsDict:
     def test_counts_breakdown(self, fixtures_dir: Path) -> None:
-        report = build_report(
-            [fixtures_dir / "with_partials.py"], _empty_cfg(), fixtures_dir
-        )
+        report = build_report([fixtures_dir / "with_partials.py"], _empty_cfg(), fixtures_dir)
         counts = report.counts()
         assert counts[STATUS_ANNOTATED] == 2
         assert counts[STATUS_PARTIAL] == 2

@@ -92,9 +92,7 @@ def _load_ini_config(path: Path, cfg: MypyConfig) -> None:
 
 def _load_toml_config(path: Path, cfg: MypyConfig) -> None:
     if tomllib is None:  # pragma: no cover
-        raise RuntimeError(
-            "Reading pyproject.toml requires tomllib (Python 3.11+) or tomli."
-        )
+        raise RuntimeError("Reading pyproject.toml requires tomllib (Python 3.11+) or tomli.")
     with path.open("rb") as fh:
         data = tomllib.load(fh)
     mypy_tbl = data.get("tool", {}).get("mypy", {})
