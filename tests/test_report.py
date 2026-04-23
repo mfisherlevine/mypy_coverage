@@ -7,18 +7,20 @@ will break them in an easy-to-diagnose way.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+import pytest
 
 from mypy_coverage.models import (
     STATUS_ANNOTATED,
-    STATUS_EXCLUDED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
     CoverageReport,
     Definition,
     MypyConfig,
 )
-from mypy_coverage.report import build_report, per_file_stats
+from mypy_coverage.report import SORT_COVERAGE, SORT_PATH, build_report, per_file_stats
 
 
 def function_defs(report: CoverageReport) -> list[Definition]:
@@ -101,30 +103,70 @@ class TestCoverageIsByCountNotLines:
         assert long_r.percent_checked() == short_r.percent_checked()
 
 
+def _excluded_regex_cfg(pattern: str) -> MypyConfig:
+    return MypyConfig(exclude_regex=re.compile(pattern))
+
+
 class TestExcludedHandling:
-    def test_excluded_files_are_separated(self, tmp_path: Path) -> None:
-        # Lay out a tree and mark half as excluded.
+    """Excluded files: definitions are classified normally but walled off.
+
+    The contract: they don't count toward the main percentages, they
+    show their real annotation status, and they're queryable via the
+    ``in_excluded_file`` flag.
+    """
+
+    def test_excluded_def_keeps_real_status(self, tmp_path: Path) -> None:
         (tmp_path / "keep.py").write_text("def a(x: int) -> int: return x\n")
         (tmp_path / "skip.py").write_text("def b(x): return x\n")
-        import re
+        report = build_report([tmp_path], _excluded_regex_cfg(r"skip\.py$"), tmp_path)
+        by_q = {d.qualname: d for d in report.definitions}
+        assert by_q["a"].status == STATUS_ANNOTATED
+        assert by_q["a"].in_excluded_file is False
+        # `b` gets the real classification, not a special "excluded" status.
+        assert by_q["b"].status == STATUS_UNANNOTATED
+        assert by_q["b"].in_excluded_file is True
 
-        cfg = MypyConfig(exclude_regex=re.compile(r"skip\.py$"))
-        report = build_report([tmp_path], cfg, tmp_path)
-        # `b` is inside an excluded file -> status=excluded, and doesn't
-        # count toward either metric.
-        statuses = {d.qualname: d.status for d in report.definitions}
-        assert statuses["a"] == STATUS_ANNOTATED
-        assert statuses["b"] == STATUS_EXCLUDED
-        assert report.percent_fully_typed() == 100.0
-
-    def test_all_files_excluded_returns_100(self, tmp_path: Path) -> None:
+    def test_excluded_def_does_not_count_toward_main(self, tmp_path: Path) -> None:
+        (tmp_path / "keep.py").write_text("def a(x: int) -> int: return x\n")
         (tmp_path / "skip.py").write_text("def b(x): return x\n")
-        import re
-
-        cfg = MypyConfig(exclude_regex=re.compile(r"skip\.py$"))
-        report = build_report([tmp_path], cfg, tmp_path)
-        # Nothing countable -> 100% by convention.
+        report = build_report([tmp_path], _excluded_regex_cfg(r"skip\.py$"), tmp_path)
+        # Main metrics: just `a`, fully annotated -> 100%.
         assert report.percent_fully_typed() == 100.0
+        assert report.percent_checked() == 100.0
+        assert report.counts()["total"] == 1
+        assert report.counts()[STATUS_ANNOTATED] == 1
+
+    def test_excluded_side_metrics_report_reality(self, tmp_path: Path) -> None:
+        """Excluded files expose their real coverage on the side."""
+        (tmp_path / "skip.py").write_text("def b(x): return x\ndef c(x: int) -> int: return x\n")
+        report = build_report([tmp_path], _excluded_regex_cfg(r"skip\.py$"), tmp_path)
+        assert report.counts(in_excluded_file=True)["total"] == 2
+        assert report.counts(in_excluded_file=True)[STATUS_ANNOTATED] == 1
+        assert report.counts(in_excluded_file=True)[STATUS_UNANNOTATED] == 1
+        assert report.percent_fully_typed(in_excluded_file=True) == 50.0
+        assert report.percent_checked(in_excluded_file=True) == 50.0
+        # And the main metrics are unaffected.
+        assert report.percent_fully_typed() == 100.0
+
+    def test_all_files_excluded_main_returns_100(self, tmp_path: Path) -> None:
+        (tmp_path / "skip.py").write_text("def b(x): return x\n")
+        report = build_report([tmp_path], _excluded_regex_cfg(r"skip\.py$"), tmp_path)
+        # Nothing in the main body to count -> 100% by convention.
+        assert report.percent_fully_typed() == 100.0
+        # But excluded-side metric still reports the reality.
+        assert report.percent_fully_typed(in_excluded_file=True) == 0.0
+
+    def test_excluded_per_file_stats(self, tmp_path: Path) -> None:
+        (tmp_path / "keep.py").write_text("def a(x: int) -> int: return x\n")
+        (tmp_path / "skip.py").write_text("def b(x): return x\n")
+        report = build_report([tmp_path], _excluded_regex_cfg(r"skip\.py$"), tmp_path)
+        # Main per-file stats: `keep.py` is clean, so nothing shown.
+        assert per_file_stats(report) == []
+        # Excluded-side per-file stats surface `skip.py`.
+        ex = per_file_stats(report, in_excluded_file=True, include_clean_files=True)
+        assert len(ex) == 1
+        assert ex[0]["file"] == "skip.py"
+        assert ex[0]["unannotated"] == 1
 
 
 class TestUnparseableFiles:
@@ -169,3 +211,75 @@ class TestCountsDict:
         assert counts[STATUS_UNANNOTATED] == 2
         assert counts["function"] == 6
         assert counts["total"] == 6
+
+    def test_counts_excluded_is_separate(self, tmp_path: Path) -> None:
+        (tmp_path / "keep.py").write_text("def a(x: int) -> int: return x\n")
+        (tmp_path / "skip.py").write_text("def b(x): return x\n")
+        report = build_report([tmp_path], _excluded_regex_cfg(r"skip\.py$"), tmp_path)
+        assert report.counts()["total"] == 1
+        assert report.counts(in_excluded_file=True)["total"] == 1
+        assert (
+            report.counts()[STATUS_ANNOTATED]
+            + report.counts(in_excluded_file=True)[STATUS_UNANNOTATED]
+            == 2
+        )
+
+
+class TestPerFileSorting:
+    """``sort_by`` controls per-file ordering without changing content."""
+
+    def _three_files(self, tmp_path: Path) -> CoverageReport:
+        # Three files at different coverage levels, named in anti-sorted order
+        # so alphabetical != coverage-based.
+        (tmp_path / "z_worst.py").write_text("def a(x): return x\ndef b(x): return x\n")
+        (tmp_path / "m_middle.py").write_text(
+            "def a(x: int) -> int: return x\ndef b(x): return x\n"
+        )
+        (tmp_path / "a_best.py").write_text("def a(x: int) -> int: return x\ndef b(x): return x\n")
+        # Note: m_middle and a_best have identical coverage; a_best wins
+        # alphabetically as the tiebreaker.
+        return build_report([tmp_path], _empty_cfg(), tmp_path)
+
+    def test_default_sort_is_path(self, tmp_path: Path) -> None:
+        report = self._three_files(tmp_path)
+        entries = per_file_stats(report)
+        assert [e["file"] for e in entries] == [
+            "a_best.py",
+            "m_middle.py",
+            "z_worst.py",
+        ]
+
+    def test_explicit_path_sort(self, tmp_path: Path) -> None:
+        report = self._three_files(tmp_path)
+        entries = per_file_stats(report, sort_by=SORT_PATH)
+        assert [e["file"] for e in entries] == [
+            "a_best.py",
+            "m_middle.py",
+            "z_worst.py",
+        ]
+
+    def test_coverage_sort_puts_worst_first(self, tmp_path: Path) -> None:
+        report = self._three_files(tmp_path)
+        entries = per_file_stats(report, sort_by=SORT_COVERAGE)
+        # z_worst (0%) first, then the two 50%s tiebroken alphabetically.
+        assert entries[0]["file"] == "z_worst.py"
+        assert entries[0]["fully_pct"] == 0.0
+        assert entries[1]["fully_pct"] == 50.0
+        assert entries[2]["fully_pct"] == 50.0
+        # Tiebreak: alphabetical within equal coverage.
+        assert entries[1]["file"] == "a_best.py"
+        assert entries[2]["file"] == "m_middle.py"
+
+    def test_invalid_sort_key_raises(self, tmp_path: Path) -> None:
+        report = self._three_files(tmp_path)
+        with pytest.raises(ValueError):
+            per_file_stats(report, sort_by="bogus")
+
+    def test_include_clean_files_adds_fully_typed_files(self, tmp_path: Path) -> None:
+        (tmp_path / "clean.py").write_text("def a(x: int) -> int: return x\n")
+        (tmp_path / "dirty.py").write_text("def b(x): return x\n")
+        report = build_report([tmp_path], _empty_cfg(), tmp_path)
+        default_entries = per_file_stats(report)
+        assert [e["file"] for e in default_entries] == ["dirty.py"]
+        all_entries = per_file_stats(report, include_clean_files=True)
+        assert [e["file"] for e in all_entries] == ["clean.py", "dirty.py"]
