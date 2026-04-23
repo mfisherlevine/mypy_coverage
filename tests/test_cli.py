@@ -140,6 +140,42 @@ class TestMainCli:
         err = capsys.readouterr().err
         assert "config file not found" in err
 
+    def test_sort_flag_reorders_per_file_table(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """``--sort coverage`` puts the worst file first, ``--sort path`` alphabetical."""
+        (tmp_path / "z_worst.py").write_text("def a(x): return x\ndef b(x): return x\n")
+        (tmp_path / "a_better.py").write_text(
+            "def a(x: int) -> int: return x\ndef b(x): return x\n"
+        )
+        code = main_cli(["--sort", "path", "--color", "never", str(tmp_path)])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert out.index("a_better.py") < out.index("z_worst.py")
+
+        code = main_cli(["--sort", "coverage", "--color", "never", str(tmp_path)])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert out.index("z_worst.py") < out.index("a_better.py")
+
+    def test_show_excluded_section_in_cli(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """End-to-end: the CLI emits a walled-off excluded-files section
+        that doesn't affect the main totals."""
+        (tmp_path / "keep.py").write_text(
+            "def a(x: int) -> int: return x\ndef uncov(x): return x\n"
+        )
+        (tmp_path / "skip.py").write_text("def b(x): return x\n")
+        cfg = tmp_path / "mypy.ini"
+        cfg.write_text("[mypy]\nexclude = ^skip\\.py$\n")
+        code = main_cli(["--config", str(cfg), "--root", str(tmp_path), "--color", "never"])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Excluded files" in out
+        # Main coverage is 50% from keep.py alone (1 / 2).
+        assert "(1 / 2)" in out
+
     def test_threshold_metric_fully_typed(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:

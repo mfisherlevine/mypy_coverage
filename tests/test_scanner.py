@@ -9,7 +9,6 @@ import pytest
 
 from mypy_coverage.models import (
     STATUS_ANNOTATED,
-    STATUS_EXCLUDED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
     Definition,
@@ -48,11 +47,29 @@ class TestScanFileBasics:
         assert ok is False
         assert defs == []
 
-    def test_excluded_flag_marks_every_definition(self, fixtures_dir: Path) -> None:
+    def test_excluded_flag_sets_in_excluded_file(self, fixtures_dir: Path) -> None:
+        """``excluded=True`` sets the flag but leaves real classification intact."""
         defs, ok = scan_file(fixtures_dir / "fully_annotated.py", excluded=True)
         assert ok is True
         assert defs
-        assert all(d.status == STATUS_EXCLUDED for d in defs)
+        assert all(d.in_excluded_file is True for d in defs)
+        # The annotation state is still the real one, so callers can report it.
+        non_class = [d for d in defs if d.kind != "class"]
+        assert all(d.status == STATUS_ANNOTATED for d in non_class)
+
+    def test_excluded_flag_off_by_default(self, fixtures_dir: Path) -> None:
+        defs, _ = scan_file(fixtures_dir / "fully_annotated.py")
+        assert all(d.in_excluded_file is False for d in defs)
+
+    def test_excluded_file_unannotated_keeps_real_status(self, fixtures_dir: Path) -> None:
+        """Deliberately unannotated content in an excluded file is still
+        classified as ``unannotated`` (with ``in_excluded_file=True``)
+        so the excluded-files report can be accurate."""
+        defs, _ = scan_file(fixtures_dir / "fully_unannotated.py", excluded=True)
+        non_class = [d for d in defs if d.kind != "class"]
+        assert non_class
+        assert all(d.status == STATUS_UNANNOTATED for d in non_class)
+        assert all(d.in_excluded_file is True for d in non_class)
 
 
 class TestClassification:

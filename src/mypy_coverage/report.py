@@ -10,7 +10,6 @@ from typing import TypedDict
 from .discovery import discover_files
 from .models import (
     STATUS_ANNOTATED,
-    STATUS_EXCLUDED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
     CoverageReport,
@@ -71,41 +70,85 @@ class PerFileStat(TypedDict):
     total: int
 
 
-def per_file_stats(report: CoverageReport, truncate_path: int | None = 60) -> list[PerFileStat]:
-    """Return per-file stats for files that have at least one gap.
+SORT_PATH = "path"
+SORT_COVERAGE = "coverage"
+VALID_SORT_KEYS = (SORT_PATH, SORT_COVERAGE)
 
-    ``truncate_path`` shortens long file paths with leading ``...`` so they
-    fit in a fixed-width column. Pass ``None`` to keep full paths.
+
+def per_file_stats(
+    report: CoverageReport,
+    truncate_path: int | None = 60,
+    sort_by: str = SORT_PATH,
+    in_excluded_file: bool = False,
+    include_clean_files: bool = False,
+) -> list[PerFileStat]:
+    """Return per-file stats.
+
+    Parameters
+    ----------
+    truncate_path : int | None
+        Shorten long file paths with leading ``...`` so they fit in a
+        fixed-width column. Pass ``None`` to keep full paths.
+    sort_by : str
+        ``"path"`` (default, alphabetical) or ``"coverage"`` (worst
+        coverage first, then file name).
+    in_excluded_file : bool
+        If ``False`` (default), stats cover the main body of the report
+        (definitions that count toward coverage). If ``True``, stats
+        cover definitions inside files excluded from mypy -- reported
+        separately as visibility-only.
+    include_clean_files : bool
+        If ``False`` (default), skip files that have no gaps. Set to
+        ``True`` to include every file that contains any definitions.
     """
+    if sort_by not in VALID_SORT_KEYS:
+        raise ValueError(f"sort_by must be one of {VALID_SORT_KEYS}, got {sort_by!r}")
+
     by_file: dict[str, list[Definition]] = defaultdict(list)
     for d in report.definitions:
+        if d.in_excluded_file != in_excluded_file:
+            continue
         by_file[d.file].append(d)
 
-    entries: list[PerFileStat] = []
+    # Build entries keyed by the raw (untruncated) file path so sorting
+    # stays stable regardless of truncation. Truncation is applied at the
+    # very end, purely for display.
+    raw_entries: list[tuple[str, PerFileStat]] = []
     for file, defs in by_file.items():
-        if not any(d.status in (STATUS_UNANNOTATED, STATUS_PARTIAL) for d in defs):
-            continue
-        non_excl = [d for d in defs if d.status != STATUS_EXCLUDED]
-        total = len(non_excl)
+        total = len(defs)
         if total == 0:
             continue
-        ann = sum(1 for d in non_excl if d.status == STATUS_ANNOTATED)
-        partial = sum(1 for d in non_excl if d.status == STATUS_PARTIAL)
-        unann = sum(1 for d in non_excl if d.status == STATUS_UNANNOTATED)
+        has_gap = any(d.status in (STATUS_UNANNOTATED, STATUS_PARTIAL) for d in defs)
+        if not has_gap and not include_clean_files:
+            continue
+        ann = sum(1 for d in defs if d.status == STATUS_ANNOTATED)
+        partial = sum(1 for d in defs if d.status == STATUS_PARTIAL)
+        unann = sum(1 for d in defs if d.status == STATUS_UNANNOTATED)
         checked = ann + partial
-        display_file = file
-        if truncate_path is not None and len(file) > truncate_path:
-            display_file = "..." + file[-(truncate_path - 3) :]
-        entries.append(
-            {
-                "file": display_file,
-                "fully_pct": 100.0 * ann / total,
-                "checked_pct": 100.0 * checked / total,
-                "annotated": ann,
-                "partial": partial,
-                "unannotated": unann,
-                "total": total,
-            }
+        raw_entries.append(
+            (
+                file,
+                {
+                    "file": file,
+                    "fully_pct": 100.0 * ann / total,
+                    "checked_pct": 100.0 * checked / total,
+                    "annotated": ann,
+                    "partial": partial,
+                    "unannotated": unann,
+                    "total": total,
+                },
+            )
         )
-    entries.sort(key=lambda e: (e["fully_pct"], e["file"]))
+
+    if sort_by == SORT_COVERAGE:
+        raw_entries.sort(key=lambda kv: (kv[1]["fully_pct"], kv[0]))
+    else:
+        raw_entries.sort(key=lambda kv: kv[0])
+
+    # Apply display truncation after sorting is finalised.
+    entries: list[PerFileStat] = []
+    for _raw, entry in raw_entries:
+        if truncate_path is not None and len(entry["file"]) > truncate_path:
+            entry["file"] = "..." + entry["file"][-(truncate_path - 3) :]
+        entries.append(entry)
     return entries

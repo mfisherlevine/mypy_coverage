@@ -11,25 +11,33 @@ analysed and any real type errors inside them are invisible.
 
 ## Install
 
-Latest tagged release (recommended):
+From PyPI (recommended):
+
+```sh
+pip install mypy-coverage
+```
+
+Or in an isolated environment with [pipx](https://pipx.pypa.io/):
+
+```sh
+pipx install mypy-coverage
+```
+
+### Alternative install channels
+
+Pinned git tag:
 
 ```sh
 pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1"
 ```
 
-Latest released code on `main`:
-
-```sh
-pip install "git+https://github.com/mfisherlevine/mypy_coverage.git"
-```
-
-Bleeding edge (`dev` branch):
+Bleeding-edge `dev` branch:
 
 ```sh
 pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@dev"
 ```
 
-For local development:
+### For local development
 
 ```sh
 git clone https://github.com/mfisherlevine/mypy_coverage.git

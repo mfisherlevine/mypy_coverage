@@ -7,7 +7,6 @@ __version__ = "0.1.0"
 from .config import discover_config, load_config
 from .models import (
     STATUS_ANNOTATED,
-    STATUS_EXCLUDED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
     CoverageReport,
@@ -24,7 +23,6 @@ __all__ = [
     "Definition",
     "MypyConfig",
     "STATUS_ANNOTATED",
-    "STATUS_EXCLUDED",
     "STATUS_PARTIAL",
     "STATUS_UNANNOTATED",
     "SilentAnyHit",

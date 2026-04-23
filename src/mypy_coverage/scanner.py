@@ -9,7 +9,6 @@ from .discovery import display_path
 from .models import (
     ALWAYS_ANNOTATED_DECORATORS,
     STATUS_ANNOTATED,
-    STATUS_EXCLUDED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
     Definition,
@@ -26,10 +25,11 @@ def scan_file(
     """Return ``(definitions, parse_ok)`` for a single file.
 
     ``parse_ok`` is False if the file could not be read or parsed; in that
-    case ``definitions`` is empty. ``excluded=True`` marks every
-    definition in the file with the ``excluded`` status -- use this when
-    the file is skipped by mypy's ``exclude`` config so the report can
-    still show what's inside.
+    case ``definitions`` is empty. When ``excluded=True`` (the file is
+    skipped by mypy's ``exclude`` config), every definition is classified
+    as normal -- so the report can show what's inside -- but has its
+    ``in_excluded_file`` flag set, which keeps it out of the main
+    coverage denominator.
     """
     try:
         source = path.read_text(encoding="utf-8")
@@ -59,12 +59,13 @@ def scan_file(
                         kind="class",
                         qualname=qualname,
                         parent_class=class_stack[-1] if class_stack else None,
-                        status=STATUS_EXCLUDED if excluded else STATUS_ANNOTATED,
+                        status=STATUS_ANNOTATED,
                         n_params=0,
                         n_annotated_params=0,
                         has_return_annotation=False,
                         decorators=decorator_names(child.decorator_list),
-                        reason="file excluded" if excluded else "",
+                        reason="",
+                        in_excluded_file=excluded,
                     )
                 )
                 walk(
@@ -103,7 +104,12 @@ def classify_function(
     rel: str,
     excluded: bool,
 ) -> Definition:
-    """Decide which status bucket a function/method falls into."""
+    """Decide which status bucket a function/method falls into.
+
+    ``excluded`` only affects the returned definition's
+    ``in_excluded_file`` flag; the status classification is identical
+    regardless of whether the file is excluded from mypy.
+    """
     decorators = decorator_names(node.decorator_list)
     qualname = ".".join(name_stack + [node.name])
     kind = "method" if parent_class is not None else "function"
@@ -111,10 +117,7 @@ def classify_function(
     params, annotated_params = count_annotated_params(node, in_class=parent_class is not None)
     has_return = node.returns is not None
 
-    if excluded:
-        status = STATUS_EXCLUDED
-        reason = "file excluded"
-    elif any(d in ALWAYS_ANNOTATED_DECORATORS for d in decorators):
+    if any(d in ALWAYS_ANNOTATED_DECORATORS for d in decorators):
         status = STATUS_ANNOTATED
         reason = ""
     elif params == 0 and not has_return:
@@ -143,6 +146,7 @@ def classify_function(
         has_return_annotation=has_return,
         decorators=decorators,
         reason=reason,
+        in_excluded_file=excluded,
     )
 
 

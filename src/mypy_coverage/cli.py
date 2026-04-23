@@ -82,6 +82,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which percentage --threshold applies to.",
     )
     parser.add_argument(
+        "--sort",
+        choices=("path", "coverage"),
+        default="path",
+        help="Sort per-file tables by file path (alphabetical, default) or "
+        "by coverage (worst first).",
+    )
+    parser.add_argument(
         "--color",
         choices=("auto", "always", "never"),
         default="auto",
@@ -151,6 +158,7 @@ def main_cli(argv: Sequence[str] | None = None) -> int:
             list_uncovered=args.list,
             list_partial=args.list_partial,
             show_excluded=args.show_excluded,
+            sort_by=args.sort,
             colors=Colors(want_color(args.color)),
         )
     elif args.format == "json":
