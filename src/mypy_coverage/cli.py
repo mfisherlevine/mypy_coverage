@@ -59,9 +59,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="List every partially annotated definition.",
     )
     parser.add_argument(
+        "--include-excluded",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Include the walled-off coverage report for files excluded by "
+        "mypy (default: yes). Pass --no-include-excluded to hide it.",
+    )
+    parser.add_argument(
         "--show-excluded",
         action="store_true",
-        help="Also list definitions in excluded files.",
+        help="Inside the excluded section, list every definition by name "
+        "with its real status. Implies --include-excluded.",
     )
     parser.add_argument(
         "--silent-any",
@@ -152,19 +160,24 @@ def main_cli(argv: Sequence[str] | None = None) -> int:
 
     report = build_report(paths, cfg, root, want_silent_any=args.silent_any)
 
+    # --show-excluded implies --include-excluded: listing definitions that
+    # live in a section we're about to suppress would be contradictory.
+    include_excluded = args.include_excluded or args.show_excluded
+
     if args.format == "text":
         output = render_text(
             report,
             list_uncovered=args.list,
             list_partial=args.list_partial,
             show_excluded=args.show_excluded,
+            include_excluded=include_excluded,
             sort_by=args.sort,
             colors=Colors(want_color(args.color)),
         )
     elif args.format == "json":
         output = render_json(report)
     elif args.format == "markdown":
-        output = render_markdown(report)
+        output = render_markdown(report, include_excluded=include_excluded)
     elif args.format == "github":
         output = render_github(report)
     else:  # pragma: no cover - argparse restricts choices

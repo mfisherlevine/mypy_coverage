@@ -168,6 +168,31 @@ class TestExcludedSectionInText:
         assert "unannotated" in out
         assert "annotated" in out
 
+    def test_include_excluded_false_hides_section(self, tmp_path: Path) -> None:
+        report = _report_with_excluded(tmp_path)
+        out = render_text(report, include_excluded=False, colors=Colors(enabled=False))
+        assert "Excluded files" not in out
+        # The main totals must be unchanged (still based on keep.py only).
+        assert "(1 / 2)" in out
+
+    def test_include_excluded_default_true(self, tmp_path: Path) -> None:
+        """Sanity: default keyword value keeps the section visible."""
+        report = _report_with_excluded(tmp_path)
+        out = render_text(report, colors=Colors(enabled=False))
+        assert "Excluded files" in out
+
+
+class TestIncludeExcludedInMarkdown:
+    def test_include_excluded_false_hides_section(self, tmp_path: Path) -> None:
+        report = _report_with_excluded(tmp_path)
+        out = render_markdown(report, include_excluded=False)
+        assert "Excluded files" not in out
+
+    def test_include_excluded_true_emits_section(self, tmp_path: Path) -> None:
+        report = _report_with_excluded(tmp_path)
+        out = render_markdown(report, include_excluded=True)
+        assert "Excluded files" in out
+
 
 class TestSortByInRenders:
     """The ``sort_by`` argument reorders the per-file tables without

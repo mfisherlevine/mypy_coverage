@@ -158,23 +158,107 @@ class TestMainCli:
         out = capsys.readouterr().out
         assert out.index("z_worst.py") < out.index("a_better.py")
 
-    def test_show_excluded_section_in_cli(
-        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
-    ) -> None:
-        """End-to-end: the CLI emits a walled-off excluded-files section
-        that doesn't affect the main totals."""
+    def _excluded_project(self, tmp_path: Path) -> Path:
         (tmp_path / "keep.py").write_text(
             "def a(x: int) -> int: return x\ndef uncov(x): return x\n"
         )
         (tmp_path / "skip.py").write_text("def b(x): return x\n")
         cfg = tmp_path / "mypy.ini"
         cfg.write_text("[mypy]\nexclude = ^skip\\.py$\n")
+        return cfg
+
+    def test_show_excluded_section_in_cli(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """End-to-end: the CLI emits a walled-off excluded-files section
+        that doesn't affect the main totals."""
+        cfg = self._excluded_project(tmp_path)
         code = main_cli(["--config", str(cfg), "--root", str(tmp_path), "--color", "never"])
         assert code == 0
         out = capsys.readouterr().out
         assert "Excluded files" in out
         # Main coverage is 50% from keep.py alone (1 / 2).
         assert "(1 / 2)" in out
+
+    def test_no_include_excluded_hides_section(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """``--no-include-excluded`` suppresses the walled-off block but
+        leaves the main totals untouched."""
+        cfg = self._excluded_project(tmp_path)
+        code = main_cli(
+            [
+                "--config",
+                str(cfg),
+                "--root",
+                str(tmp_path),
+                "--color",
+                "never",
+                "--no-include-excluded",
+            ]
+        )
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Excluded files" not in out
+        # Main totals untouched: 50% still reported as (1 / 2).
+        assert "(1 / 2)" in out
+
+    def test_include_excluded_is_default(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """Without any flag, the excluded section IS shown by default."""
+        cfg = self._excluded_project(tmp_path)
+        code = main_cli(["--config", str(cfg), "--root", str(tmp_path), "--color", "never"])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Excluded files" in out
+
+    def test_show_excluded_implies_include_excluded(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """``--show-excluded`` alongside ``--no-include-excluded`` should
+        win; hiding a section we're explicitly asked to enumerate would
+        be contradictory."""
+        cfg = self._excluded_project(tmp_path)
+        code = main_cli(
+            [
+                "--config",
+                str(cfg),
+                "--root",
+                str(tmp_path),
+                "--color",
+                "never",
+                "--no-include-excluded",
+                "--show-excluded",
+            ]
+        )
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Excluded files" in out
+        # The listing (detail enumeration) should also be present.
+        assert "unannotated" in out
+
+    def test_no_include_excluded_markdown(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """Markdown output honours the same flag."""
+        cfg = self._excluded_project(tmp_path)
+        code = main_cli(
+            [
+                "--config",
+                str(cfg),
+                "--root",
+                str(tmp_path),
+                "--color",
+                "never",
+                "--format",
+                "markdown",
+                "--no-include-excluded",
+            ]
+        )
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Excluded files" not in out
 
     def test_threshold_metric_fully_typed(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path

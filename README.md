@@ -28,7 +28,7 @@ pipx install mypy-coverage
 Pinned git tag:
 
 ```sh
-pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1"
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1.1"
 ```
 
 Bleeding-edge `dev` branch:

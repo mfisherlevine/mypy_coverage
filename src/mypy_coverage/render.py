@@ -64,10 +64,17 @@ def render_text(
     list_uncovered: bool = False,
     list_partial: bool = False,
     show_excluded: bool = False,
+    include_excluded: bool = True,
     sort_by: str = SORT_PATH,
     colors: Colors | None = None,
 ) -> str:
-    """Render a human-readable summary report."""
+    """Render a human-readable summary report.
+
+    ``include_excluded`` controls the walled-off "Excluded files" block.
+    When ``False``, the block is omitted entirely regardless of how many
+    excluded-file definitions were found; the main report is unaffected
+    either way.
+    """
     c = colors or Colors(enabled=False)
     lines: list[str] = []
 
@@ -126,7 +133,7 @@ def render_text(
         lines.append("")
 
     excluded_counts = report.counts(in_excluded_file=True)
-    if excluded_counts.get("total", 0) > 0:
+    if include_excluded and excluded_counts.get("total", 0) > 0:
         _append_excluded_section(
             lines,
             report,
@@ -273,8 +280,12 @@ def render_json(report: CoverageReport) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
-def render_markdown(report: CoverageReport) -> str:
-    """Render the report as GitHub-flavoured Markdown."""
+def render_markdown(report: CoverageReport, include_excluded: bool = True) -> str:
+    """Render the report as GitHub-flavoured Markdown.
+
+    ``include_excluded`` controls whether the excluded-files section is
+    emitted (see :func:`render_text` for the full semantics).
+    """
     lines: list[str] = []
     lines.append("# mypy-coverage report\n")
     lines.append(f"- **Root:** `{report.root}`")
@@ -326,7 +337,7 @@ def render_markdown(report: CoverageReport) -> str:
             lines.append("")
 
     excluded_counts = report.counts(in_excluded_file=True)
-    if excluded_counts.get("total", 0) > 0:
+    if include_excluded and excluded_counts.get("total", 0) > 0:
         lines.append("## Excluded files (visibility only — not counted)")
         lines.append("")
         lines.append(
