@@ -100,6 +100,44 @@ class TestRenderMarkdown:
         assert "bare_one" in out
         assert "bare_two" in out
 
+    def test_headline_passes_when_fully_annotated(self, fixtures_dir: Path) -> None:
+        report = _report(fixtures_dir, "fully_annotated.py")
+        out = render_markdown(report)
+        assert "✅ All " in out
+
+    def test_headline_warns_on_partial_only(self, tmp_path: Path) -> None:
+        (tmp_path / "p.py").write_text("def half(x: int): return x\n")
+        report = build_report([tmp_path], MypyConfig(), tmp_path)
+        out = render_markdown(report)
+        assert "⚠️" in out
+
+    def test_headline_fails_with_unannotated(self, fixtures_dir: Path) -> None:
+        report = _report(fixtures_dir, "with_partials.py")
+        out = render_markdown(report)
+        assert "❌" in out
+
+    def test_threshold_pass_line(self, fixtures_dir: Path) -> None:
+        report = _report(fixtures_dir, "fully_annotated.py")
+        out = render_markdown(report, threshold=100, threshold_metric="fully-typed")
+        assert "✅ fully-typed coverage" in out
+        assert "threshold: 100.0%" in out
+
+    def test_threshold_fail_line(self, fixtures_dir: Path) -> None:
+        report = _report(fixtures_dir, "with_partials.py")
+        out = render_markdown(report, threshold=100, threshold_metric="checked")
+        assert "❌ checked coverage" in out
+
+
+class TestRenderTextUnparseable:
+    """Files that fail to parse should surface in the text output."""
+
+    def test_unparseable_section_present(self, fixtures_dir: Path) -> None:
+        report = _report(fixtures_dir, "syntax_broken.py")
+        assert report.unparseable  # sanity
+        out = render_text(report, colors=Colors(enabled=False))
+        assert "parse errors" in out
+        assert "Files with parse errors" in out
+
 
 class TestRenderGithub:
     def test_produces_warnings_and_notices(self, fixtures_dir: Path) -> None:
@@ -120,6 +158,36 @@ class TestRenderGithub:
         out = render_github(report)
         assert "uncov" in out  # main body flagged
         assert "skip.py" not in out  # excluded file never annotated
+
+
+def _report_with_silent_any(fixtures_dir: Path) -> CoverageReport:
+    cfg = MypyConfig(ignored_modules={"somelib", "other_pkg.*"})
+    return build_report(
+        [fixtures_dir / "silent_any_sources.py"],
+        cfg,
+        fixtures_dir,
+        want_silent_any=True,
+    )
+
+
+class TestRenderSilentAny:
+    """Each renderer must emit the silent-any section when hits exist."""
+
+    def test_text_includes_silent_any_section(self, fixtures_dir: Path) -> None:
+        report = _report_with_silent_any(fixtures_dir)
+        assert report.silent_any  # sanity
+        out = render_text(report, colors=Colors(enabled=False))
+        assert "Silent-Any candidates" in out
+
+    def test_markdown_includes_silent_any_section(self, fixtures_dir: Path) -> None:
+        report = _report_with_silent_any(fixtures_dir)
+        out = render_markdown(report)
+        assert "Silent-Any candidates" in out
+
+    def test_github_emits_silent_any_notices(self, fixtures_dir: Path) -> None:
+        report = _report_with_silent_any(fixtures_dir)
+        out = render_github(report)
+        assert "Silent Any" in out
 
 
 class TestExcludedSectionInText:

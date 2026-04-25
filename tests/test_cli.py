@@ -47,6 +47,15 @@ class TestWantColor:
     def test_never(self) -> None:
         assert want_color("never") is False
 
+    def test_auto_respects_no_color(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Cover the NO_COLOR branch in want_color("auto"); pretend stdout is a
+        # TTY so the env var is the deciding factor.
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+        monkeypatch.setenv("NO_COLOR", "1")
+        assert want_color("auto") is False
+        monkeypatch.delenv("NO_COLOR")
+        assert want_color("auto") is True
+
 
 class TestMainCli:
     def test_text_format_default(
