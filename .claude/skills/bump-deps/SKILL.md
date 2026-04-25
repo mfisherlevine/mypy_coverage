@@ -32,12 +32,30 @@ bump):
 | `peter-evans/find-comment` | `v4` | |
 | `peter-evans/create-or-update-comment` | `v5` | |
 | `codecov/codecov-action` | `v6` | |
-| `pre-commit/action` | `v3.0.1` | Pinned to exact patch |
+| `actions/cache` | `v5` | Used inline in `pre-commit` job, see below |
 | `pypa/gh-action-pypi-publish` | `release/v1` | Floating tag, intentional |
 
 `pypa/gh-action-pypi-publish@release/v1` is **deliberately** a floating
 ref — that's PyPA's recommended way to consume the publish action so
 that security patches land without a manual bump. Don't pin it tighter.
+
+### `pre-commit/action` is inlined, not used
+
+The `pre-commit` job in [ci.yml](../../../.github/workflows/ci.yml) does
+**not** use `pre-commit/action@v3.0.1`. Even though that's the latest
+upstream tag, internally it pins `actions/cache@v4` (Node 20), which
+emits a deprecation warning on every run. We inline the same four
+steps and pin `actions/cache@v5` (Node 24) ourselves.
+
+When the upstream `pre-commit/action` cuts a release that uses
+`actions/cache@v5` or later, replace the inlined block with
+`uses: pre-commit/action@vX.Y.Z` and delete this note. Check via:
+
+```sh
+gh api repos/pre-commit/action/contents/action.yml --jq '.content' | base64 -d
+```
+
+Look for the `actions/cache@` pin.
 
 ### How to bump
 
