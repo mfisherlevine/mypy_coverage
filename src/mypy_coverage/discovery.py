@@ -7,7 +7,18 @@ from pathlib import Path
 
 from .models import MypyConfig
 
-_SKIP_DIRS = frozenset({".git", ".mypy_cache", "__pycache__", ".venv", "venv", ".tox"})
+_SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "venv",
+    }
+)
 
 
 def discover_files(
