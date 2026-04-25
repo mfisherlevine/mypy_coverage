@@ -280,14 +280,45 @@ def render_json(report: CoverageReport) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
-def render_markdown(report: CoverageReport, include_excluded: bool = True) -> str:
+def render_markdown(
+    report: CoverageReport,
+    include_excluded: bool = True,
+    threshold: float | None = None,
+    threshold_metric: str = "checked",
+) -> str:
     """Render the report as GitHub-flavoured Markdown.
 
     ``include_excluded`` controls whether the excluded-files section is
     emitted (see :func:`render_text` for the full semantics).
+
+    ``threshold`` and ``threshold_metric`` mirror the CLI's gate; when
+    set, the headline shows whether the gate is passing.
     """
     lines: list[str] = []
+    counts = report.counts()
+    pct_checked = report.percent_checked()
+    pct_typed = report.percent_fully_typed()
+    n_unann = counts.get(STATUS_UNANNOTATED, 0)
+    n_partial = counts.get(STATUS_PARTIAL, 0)
+
     lines.append("# mypy-coverage report\n")
+
+    if n_unann == 0 and n_partial == 0:
+        lines.append(f"✅ All {counts.get('total', 0)} definitions are fully annotated.")
+    elif n_unann == 0:
+        lines.append(f"⚠️ {n_partial} partially annotated; no unannotated definitions.")
+    else:
+        lines.append(f"❌ {n_unann} unannotated, {n_partial} partial definition(s).")
+
+    if threshold is not None:
+        gate_value = pct_checked if threshold_metric == "checked" else pct_typed
+        gate_icon = "✅" if gate_value >= threshold else "❌"
+        lines.append(
+            f"{gate_icon} {threshold_metric} coverage {gate_value:.1f}% "
+            f"(threshold: {threshold:.1f}%)."
+        )
+    lines.append("")
+
     lines.append(f"- **Root:** `{report.root}`")
     lines.append(
         f"- **Config:** `{report.config.source}`"
@@ -297,16 +328,17 @@ def render_markdown(report: CoverageReport, include_excluded: bool = True) -> st
     lines.append(f"- **Files scanned:** {len(report.scanned_files)}")
     lines.append(f"- **Files excluded:** {len(report.excluded_files)}")
     lines.append("")
-    counts = report.counts()
+    checked_icon = "✅" if pct_checked == 100.0 else "⚠️" if pct_checked >= 80 else "❌"
+    typed_icon = "✅" if pct_typed == 100.0 else "⚠️" if pct_typed >= 80 else "❌"
     lines.append("## Summary")
     lines.append("")
     lines.append("| metric | value |")
     lines.append("| --- | ---: |")
-    lines.append(f"| body-checked by mypy | {report.percent_checked():.1f}% |")
-    lines.append(f"| fully annotated      | {report.percent_fully_typed():.1f}% |")
-    lines.append(f"| annotated            | {counts.get(STATUS_ANNOTATED, 0)} |")
-    lines.append(f"| partial              | {counts.get(STATUS_PARTIAL, 0)} |")
-    lines.append(f"| unannotated          | {counts.get(STATUS_UNANNOTATED, 0)} |")
+    lines.append(f"| {checked_icon} body-checked by mypy | {pct_checked:.1f}% |")
+    lines.append(f"| {typed_icon} fully annotated | {pct_typed:.1f}% |")
+    lines.append(f"| annotated | {counts.get(STATUS_ANNOTATED, 0)} |")
+    lines.append(f"| partial | {n_partial} |")
+    lines.append(f"| unannotated | {n_unann} |")
     lines.append("")
 
     entries = per_file_stats(report, truncate_path=None)

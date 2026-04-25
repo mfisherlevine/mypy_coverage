@@ -60,7 +60,9 @@ jobs:
         run: |
           {
             echo "<!-- mypy-coverage-report -->"
-            mypy-coverage --color never --format markdown
+            # || true: report should render even when the gate would trip;
+            # the actual gating happens in the Coverage gate step below.
+            mypy-coverage --color never --format markdown --threshold 100 || true
           } > "$RUNNER_TEMP/mypy-coverage.md"
       - name: Step summary
         run: cat "$RUNNER_TEMP/mypy-coverage.md" >> "$GITHUB_STEP_SUMMARY"

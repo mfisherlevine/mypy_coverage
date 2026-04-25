@@ -177,7 +177,12 @@ def main_cli(argv: Sequence[str] | None = None) -> int:
     elif args.format == "json":
         output = render_json(report)
     elif args.format == "markdown":
-        output = render_markdown(report, include_excluded=include_excluded)
+        output = render_markdown(
+            report,
+            include_excluded=include_excluded,
+            threshold=args.threshold,
+            threshold_metric=args.threshold_metric,
+        )
     elif args.format == "github":
         output = render_github(report)
     else:  # pragma: no cover - argparse restricts choices
