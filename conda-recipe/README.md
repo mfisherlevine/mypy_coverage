@@ -64,3 +64,10 @@ to be mirrored here.
   the entry point is wired up.
 - `license: GPL-3.0-or-later` matches `pyproject.toml`. `license_family`
   is the conda-forge classifier (`GPL3`).
+- `python_min` is set at the top via `{% set python_min = "3.11" %}`
+  and used as `python {{ python_min }}` in `host` / `test.requires` and
+  `python >={{ python_min }}` in `run`. This is conda-forge's
+  recommended pattern for `noarch: python` recipes — it lets the
+  central pinning machinery rebuild the package when the supported
+  Python range shifts. If [pyproject.toml](../pyproject.toml) ever
+  raises `requires-python`, bump `python_min` here in lockstep.
