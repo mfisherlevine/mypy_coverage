@@ -28,7 +28,7 @@ pipx install mypy-coverage
 Pinned git tag:
 
 ```sh
-pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1.2"
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.2.0"
 ```
 
 Bleeding-edge `dev` branch:
@@ -99,6 +99,64 @@ for d in report.definitions:
         print(d.file, d.lineno, d.qualname)
 ```
 
+## Sample report
+
+The default `text` format prints a colourised summary to the terminal:
+
+![Sample terminal output of mypy-coverage](docs/sample-output.jpg)
+
+`--format markdown --list` produces the same data laid out for PR
+comments, GitHub issues, or this README:
+
+> # mypy-coverage report
+>
+> ❌ 17 unannotated, 2 partial definition(s).
+>
+> - **Root:** `~/projects/example`
+> - **Config:** `~/projects/example/pyproject.toml`
+> - **Files scanned:** 42
+> - **Files excluded:** 3
+>
+> ## Summary
+>
+> | metric | value |
+> | --- | ---: |
+> | ❌ body-checked by mypy | 87.2% |
+> | ❌ fully annotated | 83.9% |
+> | annotated | 220 |
+> | partial | 2 |
+> | unannotated | 17 |
+>
+> ## Files with gaps
+>
+> | file | fully typed % | body checked % | unannotated | partial |
+> | --- | ---: | ---: | ---: | ---: |
+> | `src/example/legacy/parser.py` | 33.3% | 66.7% | 2 | 2 |
+> | `src/example/io/loader.py` | 50.0% | 50.0% | 6 | 0 |
+> | `src/example/utils/text.py` | 71.4% | 71.4% | 2 | 0 |
+> | `src/example/cli/commands.py` | 77.8% | 77.8% | 2 | 0 |
+>
+> ## Unannotated definitions (17)
+>
+> ### `src/example/legacy/parser.py`
+>
+> - L25 `parse_token` (function)
+> - L29 `parse_block` (function)
+>
+> ### `src/example/io/loader.py`
+>
+> - L4 `read` (function)
+> - L8 `_open` (function)
+> - L12 `iter_records` (function)
+> - L16 `load_async` (function)
+> - L21 `Loader.add` (method)
+> - L24 `Loader.flush` (method)
+> - …
+
+The same data is also available as `--format json` (machine-readable),
+`--format text` (terminal-friendly with optional ANSI colour), and
+`--format github` (`::warning` / `::notice` annotations on the PR diff).
+
 ## What counts as "covered"?
 
 Each function, method, or class falls into one of four buckets:
@@ -164,7 +222,7 @@ The repo ships a composite action so a single `uses:` line drops
 mypy-coverage into any workflow:
 
 ```yaml
-- uses: mfisherlevine/mypy_coverage@v0.1.2
+- uses: mfisherlevine/mypy_coverage@v0.2.0
   with:
     threshold: 85
     format: github      # ::warning / ::notice annotations on the PR diff
@@ -174,7 +232,7 @@ Inputs (all optional):
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `version` | `latest` | Pin the published mypy-coverage version, e.g. `0.1.2`. |
+| `version` | `latest` | Pin the published mypy-coverage version, e.g. `0.2.0`. |
 | `python-version` | `3.11` | Python interpreter for the install step. |
 | `paths` | _(config default)_ | Space-separated paths to scan. |
 | `config` | _auto-detect_ | Explicit mypy config file. |
