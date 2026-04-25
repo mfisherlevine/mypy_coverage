@@ -128,6 +128,22 @@ If the package isn't yet on conda-forge, point them at
 [conda-recipe/README.md](../../../conda-recipe/README.md) for the
 one-time staged-recipes submission process.
 
+### Gotcha: trailing newlines on the staged-recipes / feedstock copy
+
+Our in-repo pre-commit hooks only cover this repository. When you copy
+the recipe into a `staged-recipes` fork or a feedstock checkout, the
+destination is **not** covered by `end-of-file-fixer`, and tools like
+the `Write` tool can silently drop the trailing `\n`. The conda-forge
+linter rejects files without a trailing newline. After writing the
+recipe to its destination, always:
+
+```sh
+[ "$(tail -c 1 path/to/meta.yaml | xxd -p)" = "0a" ] \
+  || printf '\n' >> path/to/meta.yaml
+```
+
+before committing and pushing.
+
 ## Don'ts
 
 - **Don't** push a tag before the bump PR is merged — the tag would
