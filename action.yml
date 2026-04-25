@@ -1,0 +1,159 @@
+name: mypy-coverage
+description: Report mypy annotation coverage. Add inline annotations and gate CI on a coverage threshold.
+author: Merlin Fisher-Levine
+
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  version:
+    description: "mypy-coverage version on PyPI. Use 'latest' or pin like '0.1.2'."
+    required: false
+    default: latest
+  python-version:
+    description: Python version to install.
+    required: false
+    default: "3.11"
+  paths:
+    description: >-
+      Space-separated paths to scan. Defaults to the ``files`` and
+      ``mypy_path`` settings in the discovered mypy config.
+    required: false
+    default: ""
+  config:
+    description: Path to mypy config file. Auto-detected if empty.
+    required: false
+    default: ""
+  root:
+    description: Project root. Defaults to the config's directory or CWD.
+    required: false
+    default: ""
+  threshold:
+    description: >-
+      Fail the step if coverage falls below this percentage (0-100). Leave
+      empty to disable the gate.
+    required: false
+    default: ""
+  threshold-metric:
+    description: "Which metric --threshold applies to: 'checked' or 'fully-typed'."
+    required: false
+    default: checked
+  format:
+    description: "Output format for the user-facing run: text, json, markdown, or github."
+    required: false
+    default: github
+  sort:
+    description: "Sort the per-file table by 'path' (alphabetical) or 'coverage' (worst first)."
+    required: false
+    default: path
+  silent-any:
+    description: Set to 'true' to also flag patterns that decay to Any.
+    required: false
+    default: "false"
+  include-excluded:
+    description: Include the walled-off excluded-files section ('true' or 'false').
+    required: false
+    default: "true"
+  list:
+    description: Set to 'true' to list every unannotated definition by name.
+    required: false
+    default: "false"
+  list-partial:
+    description: Set to 'true' to list every partially annotated definition by name.
+    required: false
+    default: "false"
+
+outputs:
+  percent-checked:
+    description: Fraction of definitions whose body mypy actually analyses, as a percentage.
+    value: ${{ steps.run.outputs.percent-checked }}
+  percent-fully-typed:
+    description: Fraction of definitions with complete annotations, as a percentage.
+    value: ${{ steps.run.outputs.percent-fully-typed }}
+  unannotated:
+    description: Count of unannotated definitions in the main body.
+    value: ${{ steps.run.outputs.unannotated }}
+  partial:
+    description: Count of partially-annotated definitions in the main body.
+    value: ${{ steps.run.outputs.partial }}
+  total:
+    description: Total definitions in the main body (excludes mypy-excluded files).
+    value: ${{ steps.run.outputs.total }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install mypy-coverage
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if [ "$VERSION" = "latest" ]; then
+          python -m pip install --quiet --upgrade mypy-coverage
+        else
+          python -m pip install --quiet "mypy-coverage==$VERSION"
+        fi
+        mypy-coverage --version
+
+    - name: Run mypy-coverage
+      id: run
+      shell: bash
+      env:
+        # Inputs go through env to avoid shell injection from user values.
+        PATHS: ${{ inputs.paths }}
+        CONFIG: ${{ inputs.config }}
+        ROOT: ${{ inputs.root }}
+        SORT: ${{ inputs.sort }}
+        SILENT_ANY: ${{ inputs.silent-any }}
+        INCLUDE_EXCLUDED: ${{ inputs.include-excluded }}
+        LIST: ${{ inputs.list }}
+        LIST_PARTIAL: ${{ inputs.list-partial }}
+        FORMAT: ${{ inputs.format }}
+        THRESHOLD: ${{ inputs.threshold }}
+        THRESHOLD_METRIC: ${{ inputs.threshold-metric }}
+      run: |
+        set -euo pipefail
+
+        ARGS=()
+        [ -n "$CONFIG" ] && ARGS+=(--config "$CONFIG")
+        [ -n "$ROOT" ] && ARGS+=(--root "$ROOT")
+        [ -n "$SORT" ] && ARGS+=(--sort "$SORT")
+        [ "$SILENT_ANY" = "true" ] && ARGS+=(--silent-any)
+        [ "$INCLUDE_EXCLUDED" = "false" ] && ARGS+=(--no-include-excluded)
+        [ "$LIST" = "true" ] && ARGS+=(--list)
+        [ "$LIST_PARTIAL" = "true" ] && ARGS+=(--list-partial)
+
+        # Stats first: this run cannot fail (no threshold), so outputs are
+        # always set even if the user-facing run trips a gate further down.
+        # PATHS is intentionally unquoted to allow space-separated values.
+        mypy-coverage --color never --format json "${ARGS[@]}" $PATHS \
+          > "$RUNNER_TEMP/mc.json"
+
+        python - <<'PY' >> "$GITHUB_OUTPUT"
+        import json
+        import os
+
+        with open(os.environ["RUNNER_TEMP"] + "/mc.json") as fh:
+            data = json.load(fh)
+        s = data["summary"]
+        c = s["counts"]
+        print(f"percent-checked={s['percent_body_checked']:.1f}")
+        print(f"percent-fully-typed={s['percent_fully_typed']:.1f}")
+        print(f"unannotated={c.get('unannotated', 0)}")
+        print(f"partial={c.get('partial', 0)}")
+        print(f"total={c.get('total', 0)}")
+        PY
+
+        # User-facing run, with optional threshold gate.
+        USER_ARGS=("${ARGS[@]}")
+        if [ -n "$THRESHOLD" ]; then
+          USER_ARGS+=(--threshold "$THRESHOLD" --threshold-metric "$THRESHOLD_METRIC")
+        fi
+        mypy-coverage --color never --format "$FORMAT" "${USER_ARGS[@]}" $PATHS

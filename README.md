@@ -28,7 +28,7 @@ pipx install mypy-coverage
 Pinned git tag:
 
 ```sh
-pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1.1"
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.1.2"
 ```
 
 Bleeding-edge `dev` branch:
@@ -157,6 +157,53 @@ semantic analysis) requires actually running mypy; see the roadmap note.
 - `github` — `::warning` / `::notice` annotations for GitHub Actions
 
 ## CI use
+
+### As a GitHub Action
+
+The repo ships a composite action so a single `uses:` line drops
+mypy-coverage into any workflow:
+
+```yaml
+- uses: mfisherlevine/mypy_coverage@v0.1.2
+  with:
+    threshold: 85
+    format: github      # ::warning / ::notice annotations on the PR diff
+```
+
+Inputs (all optional):
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `version` | `latest` | Pin the published mypy-coverage version, e.g. `0.1.2`. |
+| `python-version` | `3.11` | Python interpreter for the install step. |
+| `paths` | _(config default)_ | Space-separated paths to scan. |
+| `config` | _auto-detect_ | Explicit mypy config file. |
+| `root` | _config dir_ | Project root passed to `--root`. |
+| `threshold` | _none_ | Fail the step if coverage < this percent. |
+| `threshold-metric` | `checked` | `checked` or `fully-typed`. |
+| `format` | `github` | `text` / `json` / `markdown` / `github`. |
+| `sort` | `path` | `path` or `coverage`. |
+| `silent-any` | `false` | Set `true` to enable silent-Any detection. |
+| `include-excluded` | `true` | Show the walled-off excluded section. |
+| `list` | `false` | List every unannotated definition. |
+| `list-partial` | `false` | List every partial definition. |
+
+Outputs:
+
+| Output | Example | Notes |
+| --- | --- | --- |
+| `percent-checked` | `87.2` | Body-checked-by-mypy fraction, as a percent. |
+| `percent-fully-typed` | `83.9` | Stricter "everything typed" fraction. |
+| `unannotated` | `158` | Count of unannotated defs in the main body. |
+| `partial` | `41` | Count of partials in the main body. |
+| `total` | `1238` | Total defs in the main body. |
+
+Outputs are set even when the threshold gate fails, so a follow-up
+step can post a sticky PR comment with the numbers regardless.
+
+### As a manual `pip install` step
+
+If you'd rather not use the composite action:
 
 ```yaml
 - name: mypy coverage
