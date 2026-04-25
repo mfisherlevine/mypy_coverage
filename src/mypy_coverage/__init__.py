@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.2.0"
+__version__ = "0.2.3"
 
 from .config import discover_config, load_config
 from .models import (
