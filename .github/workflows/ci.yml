@@ -34,11 +34,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
-      - run: pytest -ra
+      - run: pytest -ra --cov=mypy_coverage --cov-report=xml --cov-report=term --cov-branch
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: py${{ matrix.python-version }}
 
   self-coverage:
     name: Self-coverage (must be 100%)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,13 +56,30 @@ jobs:
       - run: pip install -e ".[dev]"
       - name: Coverage annotations (inline on PR diff)
         run: mypy-coverage --color never --format github
-      - name: Coverage summary (PR check page)
+      - name: Build coverage markdown
         run: |
           {
-            echo "## mypy coverage"
-            echo
+            echo "<!-- mypy-coverage-report -->"
             mypy-coverage --color never --format markdown
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > "$RUNNER_TEMP/mypy-coverage.md"
+      - name: Step summary
+        run: cat "$RUNNER_TEMP/mypy-coverage.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Find existing PR comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: <!-- mypy-coverage-report -->
+      - name: Post or update PR comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: ${{ runner.temp }}/mypy-coverage.md
+          edit-mode: replace
       - name: Coverage gate
         run: mypy-coverage --color never --threshold 100
 
