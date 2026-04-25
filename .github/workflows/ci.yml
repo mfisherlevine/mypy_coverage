@@ -46,3 +46,29 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: mypy-coverage --color never --threshold 100
+
+  action-smoke-test:
+    name: Composite action smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: mc
+        uses: ./
+        with:
+          paths: src/mypy_coverage
+          format: text
+          threshold: "100"
+          threshold-metric: fully-typed
+      - name: Outputs are populated
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "percent-checked     = ${{ steps.mc.outputs.percent-checked }}"
+          echo "percent-fully-typed = ${{ steps.mc.outputs.percent-fully-typed }}"
+          echo "unannotated         = ${{ steps.mc.outputs.unannotated }}"
+          echo "partial             = ${{ steps.mc.outputs.partial }}"
+          echo "total               = ${{ steps.mc.outputs.total }}"
+          # The package dogfoods to 100%, so this is a load-bearing assertion.
+          test "${{ steps.mc.outputs.percent-fully-typed }}" = "100.0"
+          test "${{ steps.mc.outputs.unannotated }}" = "0"
+          test "${{ steps.mc.outputs.partial }}" = "0"
