@@ -16,6 +16,8 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        # conda-forge recipes are Jinja2-templated and not strictly valid YAML.
+        exclude: ^conda-recipe/meta\.yaml$
       - id: check-toml
       - id: check-added-large-files
       - id: check-merge-conflict

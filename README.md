@@ -23,6 +23,14 @@ Or in an isolated environment with [pipx](https://pipx.pypa.io/):
 pipx install mypy-coverage
 ```
 
+From conda-forge:
+
+```sh
+conda install -c conda-forge mypy-coverage
+# or
+mamba install -c conda-forge mypy-coverage
+```
+
 ### Alternative install channels
 
 Pinned git tag:
