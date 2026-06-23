@@ -24,6 +24,12 @@ ALL_STATUSES = (STATUS_ANNOTATED, STATUS_PARTIAL, STATUS_UNANNOTATED)
 # Decorators that force a function to count as annotated regardless of params.
 ALWAYS_ANNOTATED_DECORATORS = frozenset({"overload", "typing.overload"})
 
+# Methods whose return type mypy infers as ``None``, so an explicit ``-> None``
+# is not required for them to count as fully typed -- provided at least one
+# parameter is annotated. Verified against mypy --strict; see
+# tests/test_init_return_waiver.py for the cross-check.
+RETURN_OPTIONAL_METHODS = frozenset({"__init__", "__init_subclass__"})
+
 
 @dataclass(frozen=True)
 class Definition:
