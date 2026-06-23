@@ -36,7 +36,7 @@ mamba install -c conda-forge mypy-coverage
 Pinned git tag:
 
 ```sh
-pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.2.3"
+pip install "git+https://github.com/mfisherlevine/mypy_coverage.git@v0.2.4"
 ```
 
 Bleeding-edge `dev` branch:
@@ -230,7 +230,7 @@ The repo ships a composite action so a single `uses:` line drops
 mypy-coverage into any workflow:
 
 ```yaml
-- uses: mfisherlevine/mypy_coverage@v0.2.3
+- uses: mfisherlevine/mypy_coverage@v0.2.4
   with:
     threshold: 85
     format: github      # ::warning / ::notice annotations on the PR diff
@@ -240,7 +240,7 @@ Inputs (all optional):
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `version` | `latest` | Pin the published mypy-coverage version, e.g. `0.2.3`. |
+| `version` | `latest` | Pin the published mypy-coverage version, e.g. `0.2.4`. |
 | `python-version` | `3.11` | Python interpreter for the install step. |
 | `paths` | _(config default)_ | Space-separated paths to scan. |
 | `config` | _auto-detect_ | Explicit mypy config file. |

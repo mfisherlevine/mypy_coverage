@@ -139,6 +139,65 @@ class TestClassification:
         assert by_q["C.class_method_annotated"].n_params == 1
 
 
+class TestInitReturnWaiver:
+    """__init__ / __init_subclass__ don't need an explicit ``-> None``.
+
+    See tests/test_init_return_waiver.py for the cross-check that these
+    expectations actually match mypy's behaviour.
+    """
+
+    EXPECTED = {
+        # __init__: return waived once at least one param is annotated.
+        "InitNoParamsReturn.__init__": STATUS_ANNOTATED,
+        "InitNoParamsNoReturn.__init__": STATUS_UNANNOTATED,
+        "InitOneAnnotReturn.__init__": STATUS_ANNOTATED,
+        "InitOneAnnotNoReturn.__init__": STATUS_ANNOTATED,
+        "InitOneBareNoReturn.__init__": STATUS_UNANNOTATED,
+        "InitOneBareReturn.__init__": STATUS_PARTIAL,
+        "InitMixedNoReturn.__init__": STATUS_PARTIAL,
+        "InitMixedReturn.__init__": STATUS_PARTIAL,
+        "InitAllAnnotNoReturn.__init__": STATUS_ANNOTATED,
+        "InitAllAnnotReturn.__init__": STATUS_ANNOTATED,
+        "InitTwoBareNoReturn.__init__": STATUS_UNANNOTATED,
+        "InitTwoBareReturn.__init__": STATUS_PARTIAL,
+        # __init_subclass__: same waiver.
+        "SubclassOneAnnotNoReturn.__init_subclass__": STATUS_ANNOTATED,
+        "SubclassNoParamsReturn.__init_subclass__": STATUS_ANNOTATED,
+        "SubclassNoParamsNoReturn.__init_subclass__": STATUS_UNANNOTATED,
+        "SubclassMixedNoReturn.__init_subclass__": STATUS_PARTIAL,
+        # Contrast: return is NOT waived for these.
+        "NewOneAnnotNoReturn.__new__": STATUS_PARTIAL,
+        "NewNoParamsNoReturn.__new__": STATUS_UNANNOTATED,
+        "RegularOneAnnotNoReturn.method": STATUS_PARTIAL,
+        "__init__": STATUS_PARTIAL,  # module-level function, not a method
+    }
+
+    def test_every_combination(self, fixtures_dir: Path) -> None:
+        defs, _ = scan_file(fixtures_dir / "init_methods.py")
+        statuses = statuses_by_qualname([d for d in defs if d.kind != "class"])
+        assert statuses == self.EXPECTED
+
+    def test_waived_partials_omit_missing_return(self, fixtures_dir: Path) -> None:
+        """A waived method's reason never mentions the (implicit) return."""
+        defs, _ = scan_file(fixtures_dir / "init_methods.py")
+        reasons = {d.qualname: d.reason for d in defs}
+        assert reasons["InitMixedNoReturn.__init__"] == "1/2 params unannotated"
+        assert reasons["InitOneBareReturn.__init__"] == "1/1 params unannotated"
+        assert reasons["InitTwoBareReturn.__init__"] == "2/2 params unannotated"
+        assert reasons["SubclassMixedNoReturn.__init_subclass__"] == "1/2 params unannotated"
+        # A regular method still reports the missing return.
+        assert reasons["RegularOneAnnotNoReturn.method"] == "missing return annotation"
+
+    def test_module_level_init_is_not_waived(self, fixtures_dir: Path) -> None:
+        """The waiver is gated on being a method, not on the name ``__init__``."""
+        defs, _ = scan_file(fixtures_dir / "init_methods.py")
+        by_q = {d.qualname: d for d in defs}
+        module_init = by_q["__init__"]
+        assert module_init.kind == "function"
+        assert module_init.status == STATUS_PARTIAL
+        assert module_init.reason == "missing return annotation"
+
+
 class TestCountAnnotatedParams:
     """Direct unit tests via ast parsing."""
 

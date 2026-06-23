@@ -8,6 +8,7 @@ from pathlib import Path
 from .discovery import display_path
 from .models import (
     ALWAYS_ANNOTATED_DECORATORS,
+    RETURN_OPTIONAL_METHODS,
     STATUS_ANNOTATED,
     STATUS_PARTIAL,
     STATUS_UNANNOTATED,
@@ -117,22 +118,29 @@ def classify_function(
     params, annotated_params = count_annotated_params(node, in_class=parent_class is not None)
     has_return = node.returns is not None
 
+    # mypy infers a ``None`` return for __init__ / __init_subclass__, so an
+    # explicit ``-> None`` isn't required for them to be fully typed -- as long
+    # as at least one parameter is annotated to anchor on. A bare
+    # ``def __init__(self): ...`` with no annotations at all is still untyped.
+    return_optional = parent_class is not None and node.name in RETURN_OPTIONAL_METHODS
+    return_satisfied = has_return or (return_optional and annotated_params >= 1)
+
     if any(d in ALWAYS_ANNOTATED_DECORATORS for d in decorators):
         status = STATUS_ANNOTATED
         reason = ""
-    elif params == 0 and not has_return:
+    elif params == 0 and not return_satisfied:
         # Zero real params, no return annotation: mypy treats as unannotated.
         status = STATUS_UNANNOTATED
         reason = "no annotations"
-    elif params == annotated_params and has_return:
+    elif params == annotated_params and return_satisfied:
         status = STATUS_ANNOTATED
         reason = ""
-    elif annotated_params == 0 and not has_return:
+    elif annotated_params == 0 and not return_satisfied:
         status = STATUS_UNANNOTATED
         reason = "no annotations"
     else:
         status = STATUS_PARTIAL
-        reason = partial_reason(params, annotated_params, has_return)
+        reason = partial_reason(params, annotated_params, return_satisfied)
 
     return Definition(
         file=rel,
