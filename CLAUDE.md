@@ -99,10 +99,17 @@ The release flow is:
 2. Land the bump on `main`.
 3. Tag `vX.Y.Z` and push the tag.
 4. [.github/workflows/release.yml](.github/workflows/release.yml)
-   builds the wheel, verifies its filename matches the tag, and
-   publishes to PyPI via Trusted Publishing (no API token needed).
+   builds the wheel, verifies its filename matches the tag, publishes
+   to PyPI via Trusted Publishing (no API token needed), and then
+   creates the GitHub Release with the built files attached and
+   auto-generated notes.
 5. Conda-forge's `regro-cf-autotick-bot` opens a feedstock PR within
    ~24h. Review and merge it.
+
+The Release is created last on purpose: it announces a version, so it
+must not exist unless PyPI actually has one. It also uses `gh` from the
+runner rather than a release action, which is why the pinned-actions
+list below does not grow.
 
 See [.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md)
 for the full release walkthrough.
