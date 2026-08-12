@@ -46,3 +46,35 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    # A tag alone leaves nothing on the Releases page, so `releases/latest`
+    # keeps reporting whatever was last released by hand — which is how
+    # v0.2.4 came to look unpublished while it was on PyPI and conda-forge
+    # already.
+    #
+    # After the PyPI publish rather than beside it: a Release announcing a
+    # version that never reached PyPI is worse than no Release at all, and
+    # `needs` skips this job outright if the upload failed.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # create the Release and attach the built files
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - name: Create the GitHub Release
+        # `gh` rather than a release action: it is already on the runner,
+        # so this adds no third-party dependency and — the point, given
+        # why this job exists — nothing further to re-pin at the next Node
+        # bump. See the GitHub Actions versions note in CLAUDE.md.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

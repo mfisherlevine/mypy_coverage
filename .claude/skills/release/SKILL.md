@@ -110,6 +110,17 @@ which:
 1. Builds the wheel with `python -m build`.
 2. Verifies the wheel filename embeds the tag's version.
 3. Uploads to PyPI via Trusted Publishing (no API token).
+4. Creates the GitHub Release for the tag, with the built sdist and
+   wheel attached and notes generated from the merged PRs since the
+   previous Release. This runs only if step 3 succeeded, so a failed
+   upload leaves no Release announcing a version PyPI does not have.
+
+So there is nothing to do by hand on the Releases page any more. If a
+tag somehow ends up with no Release (as `v0.2.4` did, predating this
+job), create it after the fact with
+`gh release create vX.Y.Z --generate-notes` — that fires a `release`
+event, not a tag push, so it will *not* re-run this workflow or attempt
+a duplicate PyPI upload.
 
 Watch it:
 
